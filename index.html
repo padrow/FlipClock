@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flip Clock">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
+<title>Flip Clock</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  /* ---------- themes ---------- */
+  :root{                  /* dark (default): black page, white digits */
+    --bg:#000;            /* page background */
+    --card:#161616;       /* flap colour (dark charcoal so the flaps are visible on black) */
+    --card-hi:#1e1e1e;
+    --ink:#fff;           /* digits, colon, AM/PM, date */
+    --shade:.5;           /* darkening of a flap while it turns */
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f2f2f2; --card:#ffffff; --card-hi:#fafafa; --ink:#111; --shade:.18; color-scheme:light;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f2f2f2; --card:#ffffff; --card-hi:#fafafa; --ink:#111; --shade:.18; color-scheme:light;
+  }
+
+  /* ---------- sizes: landscape (default) ---------- */
+  :root{
+    /* width of one big card: as big as the screen allows (row = 5.83 card widths, column = 2.25) */
+    --W:min(
+      calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.95 / 5.83),
+      calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.94 / 2.25));
+    --H:calc(var(--W) * 1.45);
+    --R:calc(var(--W) * 0.08);
+    --dur:280ms;          /* duration of each half of the flip */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  body{display:flex;align-items:center;justify-content:center;
+    font-family:"Helvetica Neue",-apple-system,Helvetica,Arial,sans-serif;font-weight:700;
+    color:var(--ink);
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+  .clock{display:flex;align-items:flex-end;gap:calc(var(--W)*0.18)}
+  .group{display:flex;gap:calc(var(--W)*0.06)}
+
+  .colon{height:var(--H);display:flex;flex-direction:column;justify-content:center;
+    gap:calc(var(--H)*0.22)}
+  .colon i{display:block;width:calc(var(--W)*0.13);height:calc(var(--W)*0.13);
+    border-radius:50%;background:var(--ink)}
+
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:calc(var(--W)*0.14)}
+  .date{font-size:calc(min(14vw, 38vh)*0.18);   /* fixed small size (A), same in every view */
+   font-weight:600;letter-spacing:.02em;line-height:1;color:var(--ink);
+    white-space:nowrap}   /* always one line */
+
+  /* AM/PM printed inside the first hour card, bottom-left */
+  #h{position:relative}
+  .ampm{position:absolute;left:calc(var(--W)*0.09);bottom:calc(var(--H)*0.08);z-index:6;
+    font-size:calc(var(--W)*0.17);letter-spacing:.04em;line-height:1;color:var(--ink);pointer-events:none}
+
+  /* ---------- split-flap card ---------- */
+  .card{position:relative;width:var(--W);height:var(--H);
+    font-size:calc(var(--W)*1.08);perspective:calc(var(--H)*4);
+    font-variant-numeric:tabular-nums}
+  .small .card{width:calc(var(--W)*0.5);height:calc(var(--H)*0.5);font-size:calc(var(--W)*0.54)}
+  .small{gap:calc(var(--W)*0.04)}
+
+  .half{position:absolute;left:0;width:100%;height:50%;overflow:hidden;
+    background:var(--card);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .half.top{top:0;border-radius:var(--R) var(--R) 0 0;transform-origin:50% 100%;
+    background:linear-gradient(var(--card-hi),var(--card))}
+  .half.bottom{top:50%;border-radius:0 0 var(--R) var(--R);transform-origin:50% 0}
+  .small .half.top{border-radius:calc(var(--R)*.6) calc(var(--R)*.6) 0 0}
+  .small .half.bottom{border-radius:0 0 calc(var(--R)*.6) calc(var(--R)*.6)}
+
+  .half span{position:absolute;left:0;width:100%;height:200%;
+    display:flex;align-items:center;justify-content:center;line-height:1;color:var(--ink)}
+  .half.top span{top:0}
+  .half.bottom span{top:-100%}
+
+  /* hinge line across the middle */
+  .card::after{content:"";position:absolute;left:0;right:0;top:50%;height:max(2px,calc(var(--H)*0.012));
+    transform:translateY(-50%);background:var(--bg);z-index:5}
+
+  /* flipping flaps */
+  .flap{z-index:3}
+  .flap.top{animation:flipTop var(--dur) ease-in forwards}
+  .flap.bottom{transform:rotateX(90deg);animation:flipBottom var(--dur) ease-out var(--dur) forwards}
+  .flap.top::before,.flap.bottom::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none}
+  .flap.top::before{background:#000;opacity:0;animation:shadeIn var(--dur) ease-in forwards}
+  .flap.bottom::before{background:#000;opacity:var(--shade);animation:shadeOut var(--dur) ease-out var(--dur) forwards}
+  @keyframes flipTop{from{transform:rotateX(0)}to{transform:rotateX(-90deg)}}
+  @keyframes flipBottom{from{transform:rotateX(90deg)}to{transform:rotateX(0)}}
+  @keyframes shadeIn{to{opacity:var(--shade)}}
+  @keyframes shadeOut{to{opacity:0}}
+
+  /* connection light: hidden while all is well, red only when the ESP32 can't be reached */
+  .status{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 8px);right:12px;
+    width:6px;height:6px;border-radius:50%;background:#b3261e;opacity:0;transition:opacity .3s}
+  .status.bad{opacity:1}
+  .half{box-shadow:inset 0 0 0 1px rgba(127,127,127,.08)}
+  html,body{transition:background .3s}
+
+  /* ---------- portrait: hours above minutes, seconds below ---------- */
+  @media (orientation: portrait){
+    :root{--W:min(            /* row = 2.06 card widths, column = 4.35 */
+      calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.93 / 2.06),
+      calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.9 / 4.35))}
+    .clock{flex-direction:column;align-items:center;gap:calc(var(--W)*0.1)}
+    .colon{display:none}
+    .small{margin-top:calc(var(--W)*0.04)}
+    .wrap{gap:calc(var(--W)*0.16)}
+    .date{font-size:min(calc(min(40vw, 19vh)*0.15), 6.5vw)}   /* fixed small size (A); fits the longest date */
+  }
+
+  /* theme toast (tap the date to switch Auto / Dark / Light) */
+  .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);
+    font-size:14px;font-weight:600;padding:6px 14px;border-radius:999px;
+    background:var(--ink);color:var(--bg);opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:.85}
+  .date{cursor:pointer}
+  /* tap the seconds: they fade out and the clock grows to fill the space.
+     tap the minutes to bring the seconds back */
+  @property --W{syntax:"<length>";inherits:true;initial-value:100px}
+  :root{transition:--W .45s ease}
+  :root.notrans{transition:none}
+  #s{cursor:pointer;transition:opacity .3s}
+  #s.hidden{opacity:0}
+  html.nosec #s{display:none}
+  #h{cursor:pointer;touch-action:manipulation}   /* no double-tap zoom on the hours */
+  /* time-only view (tap the hours, step 3): just hours and minutes */
+  html.minimal #date, html.minimal #s, html.minimal .flight{display:none}
+  html.nosec #m{cursor:pointer}
+  html.minimal #m{cursor:auto}
+  /* seconds hidden: as big as the screen allows, with date and flight board still fitting.
+     landscape: row = 4.61 card widths, column = 2.25; portrait: row = 2.06, column = 3.8 */
+  @media (orientation: landscape){ html.nosec{--W:min(
+      calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.95 / 4.61),
+      calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.94 / 2.25))} }
+  @media (orientation: portrait){ html.nosec{--W:min(
+      calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.93 / 2.06),
+      calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.9 / 3.8))} }
+  /* landscape time-only view: as big as the screen allows (row = 4.61 card widths, card = 1.45 x width) */
+  @media (orientation: landscape){
+    html.minimal{--W:min(
+      calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.96 / 4.61),
+      calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.92 / 1.45))}
+  }
+
+  /* ---------- flight board under the time ---------- */
+  /* width of one letter flap: shrinks for long city names (--n = number of letters) */
+  .flight{--n:10;--L:min(calc(var(--W)*0.2), 6.4vw, calc(88vw / (var(--n) * 1.1 + 1.95)))}
+  /* plane + city are centred together under the date */
+  .flight{display:flex;align-items:center;justify-content:center;gap:calc(var(--L)*0.45);
+    margin-top:calc(var(--L)*0.2)}
+  .plane{position:relative;order:-1;flex:none;width:calc(var(--L)*1.5);height:calc(var(--L)*1.5)}
+  .plane svg{position:absolute;inset:0;width:100%;height:100%;fill:var(--ink);transition:opacity .4s}
+  .plane .land{opacity:0}
+  .plane.arr .land{opacity:1}
+  .plane.arr .takeoff{opacity:0}
+  .board{display:flex;gap:calc(var(--L)*0.1)}
+  .board .card{width:var(--L);height:calc(var(--L)*1.4);font-size:calc(var(--L)*0.88);
+    perspective:calc(var(--L)*6);font-variant-numeric:normal}
+  .board .half.top{border-radius:calc(var(--L)*.14) calc(var(--L)*.14) 0 0}
+  .board .half.bottom{border-radius:0 0 calc(var(--L)*.14) calc(var(--L)*.14)}
+  .board .card::after{height:max(1px,calc(var(--L)*0.035))}
+
+  /* colon: one soft, slow pulse, then rest */
+  .colon i{animation:pulse 2s ease-in-out infinite;will-change:transform,opacity}
+  @keyframes pulse{
+    0%  {transform:scale(1);   opacity:.8}
+    30% {transform:scale(1.04);opacity:1}
+    70% {transform:scale(1);   opacity:.8}
+    100%{transform:scale(1);   opacity:.8}
+  }
+  @media (prefers-reduced-motion: reduce){ .colon i{animation:none} }
+  /* tap the colon to switch the pulse off / on */
+  html.nopulse .colon i{animation:none;opacity:1}
+  .colon{position:relative;cursor:pointer}
+  .colon::before{content:"";position:absolute;top:0;bottom:0;left:calc(var(--W)*-0.09);right:calc(var(--W)*-0.09)}
+
+  /* ---------- app: no ESP32 status dot; settings sheet (tap the flight board) ---------- */
+  .status{display:none}
+  .flight{cursor:pointer}
+  .sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);padding:16px}
+  .sheet[hidden]{display:none}
+  .panel{width:min(360px,100%);max-height:100%;overflow:auto;background:var(--card);color:var(--ink);
+    border-radius:18px;padding:20px;font-weight:400;font-size:15px;line-height:1.4;
+    box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .panel h2{font-size:18px;font-weight:700;margin-bottom:14px}
+  .panel label{display:block;font-weight:600;margin-bottom:12px}
+  .panel input{display:block;width:100%;margin-top:6px;padding:10px 12px;font:inherit;font-size:16px;font-weight:400;
+    color:var(--ink);background:var(--bg);border:1px solid rgba(127,127,127,.35);border-radius:10px;
+    -webkit-user-select:text;user-select:text}
+  .panel .hint{opacity:.65;font-size:13px;margin:-4px 0 12px}
+  .panel .info{font-size:13px;margin-bottom:16px;min-height:1.4em}
+  .panel .row{display:flex;gap:10px;justify-content:flex-end}
+  .panel button{font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:0;cursor:pointer;
+    color:var(--ink);background:rgba(127,127,127,.18)}
+  .panel button.primary{background:var(--ink);color:var(--bg)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+  <div class="date" id="date">&nbsp;</div>
+  <div class="clock">
+    <div class="group" id="h"><div class="card"></div><div class="card"></div><div class="ampm" id="ampm"></div></div>
+    <div class="colon"><i></i><i></i></div>
+    <div class="group" id="m"><div class="card"></div><div class="card"></div></div>
+    <div class="group small" id="s"><div class="card"></div><div class="card"></div></div>
+  </div>
+  <div class="flight" id="flight" title="">
+    <div class="board" id="board"></div>
+    <div class="plane" id="plane" aria-hidden="true">
+      <svg class="takeoff" viewBox="0 0 24 24"><path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 1.82 3.16.77 1.33 1.6-.43 5.31-1.42 4.35-1.16L21 11.49c.81-.23 1.28-1.05 1.07-1.85z"/></svg>
+      <svg class="land" viewBox="0 0 24 24"><path d="M2.5 19h19v2h-19v-2zm7.18-5.73l4.35 1.16 5.31 1.42c.8.21 1.62-.26 1.84-1.06.21-.8-.26-1.62-1.06-1.84l-5.31-1.42-2.76-9.02L10.12 2v8.28L5.15 8.95l-.93-2.32-1.45-.39v5.17l1.6.43 5.31 1.43z"/></svg>
+    </div>
+  </div>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="toast" id="toast"></div>
+
+  <div class="sheet" id="sheet" hidden>
+    <form class="panel" id="settings">
+      <h2>Flight board</h2>
+      <label>AeroDataBox key
+        <input id="sKey" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="X-RapidAPI-Key">
+      </label>
+      <p class="hint">Stored only on this iPhone. Without a key the board shows random cities.</p>
+      <label>Airport
+        <input id="sAirport" autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="4" placeholder="Nearest (uses your location)">
+      </label>
+      <p class="hint">ICAO code, e.g. EBBR Brussels, EBCI Charleroi. Leave empty for the nearest airport.</p>
+      <p class="info" id="sInfo"></p>
+      <div class="row">
+        <button type="button" id="sRefresh">Update now</button>
+        <button type="submit" class="primary">Done</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+(function(){
+  const NBSP = "\u00a0";
+
+  // ----- build cards -----
+  const cards = {};
+  ["h","m","s"].forEach(id=>{
+    cards[id] = [...document.querySelectorAll("#"+id+" .card")];
+    cards[id].forEach(c=>{
+      c.innerHTML = '<div class="half top"><span></span></div><div class="half bottom"><span></span></div>';
+      c.dataset.v = "";
+    });
+  });
+
+  function setCard(card, v, animate){
+    const old = card.dataset.v;
+    if (old === v) return;
+    card.dataset.v = v;
+    const top = card.querySelector(".half.top:not(.flap) span");
+    const bot = card.querySelector(".half.bottom:not(.flap) span");
+    card.querySelectorAll(".flap").forEach(f=>f.remove());
+
+    if (!animate || old === ""){ top.textContent = v; bot.textContent = v; return; }
+
+    top.textContent = v;      // new top revealed behind the falling flap
+    bot.textContent = old;    // old bottom stays until the flap lands
+
+    const ft = document.createElement("div");
+    ft.className = "half top flap";
+    ft.innerHTML = "<span></span>"; ft.firstChild.textContent = old;
+
+    const fb = document.createElement("div");
+    fb.className = "half bottom flap";
+    fb.innerHTML = "<span></span>"; fb.firstChild.textContent = v;
+
+    card.append(ft, fb);
+    fb.addEventListener("animationend", ()=>{
+      bot.textContent = v; ft.remove(); fb.remove();
+    }, {once:true});
+  }
+
+  // ----- time -----
+  // The phone's own time zone database turns UTC into local time, summer/winter time included.
+  // delta    = (local wall time in ms, expressed as if it were UTC) - Date.now()
+  // utcDelta = (true UTC in ms) - Date.now()
+  let delta = null, utcDelta = null;
+  let tz = "Europe/Brussels";
+  const statusEl = document.getElementById("status");
+  const fmtCache = {};
+  function wallMs(utc, zone){
+    const f = fmtCache[zone] || (fmtCache[zone] = new Intl.DateTimeFormat("en-GB",{timeZone:zone,hourCycle:"h23",
+      year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}));
+    const p = {}; f.formatToParts(utc).forEach(x=>p[x.type]=x.value);
+    return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second) + ((Math.floor(utc) % 1000) + 1000) % 1000;
+  }
+  function setTime(utc){
+    utcDelta = utc - Date.now();
+    delta = wallMs(utc, tz) - Date.now();
+  }
+  function phoneZone(){
+    try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }catch(e){ return ""; }
+  }
+  function setZone(z){
+    if (!z || z === tz) return;
+    try{ wallMs(Date.now(), z); tz = z; }catch(e){}     // ignore unknown zone names
+  }
+
+  // the iPhone itself is the clock: its own time and time zone
+  function sync(){ setZone(phoneZone()); setTime(Date.now()); return Promise.resolve(); }
+
+  let lastAmpm = "";
+  let lastDate = "";
+  const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const MONTHS = ["January","February","March","April","May","June","July",
+                  "August","September","October","November","December"];
+  let animate = false;
+
+  // 12 / 24-hour: tap the hours to switch
+  let use24 = false;
+  try{ use24 = localStorage.getItem("flip24") === "1"; }catch(e){}
+
+  function render(){
+    if (delta === null) return;
+    const d = new Date(Date.now() + delta);   // read with getUTC* = Brussels wall time
+    let h24 = d.getUTCHours();
+    const m = d.getUTCMinutes();
+    const s = d.getUTCSeconds();
+    const ampm = use24 ? "" : (h24 < 12 ? "AM" : "PM");
+    let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+
+    const hs = use24 ? String(h24).padStart(2,"0") : String(h12).padStart(2," ");
+    const ms = String(m).padStart(2,"0");
+    const ss = String(s).padStart(2,"0");
+
+    setCard(cards.h[0], hs[0] === " " ? NBSP : hs[0], animate);
+    setCard(cards.h[1], hs[1], animate);
+    setCard(cards.m[0], ms[0], animate);
+    setCard(cards.m[1], ms[1], animate);
+    setCard(cards.s[0], ss[0], animate);
+    setCard(cards.s[1], ss[1], animate);
+
+    if (ampm !== lastAmpm){ document.getElementById("ampm").textContent = ampm; lastAmpm = ampm; }
+
+    const dateStr = DAYS[d.getUTCDay()] + ", " + d.getUTCDate() + " " + MONTHS[d.getUTCMonth()];
+    if (dateStr !== lastDate){ document.getElementById("date").textContent = dateStr; lastDate = dateStr; }
+    renderFlight(Date.now() + utcDelta, animate);
+    animate = true;
+  }
+
+  function tick(){
+    render();
+    const now = (delta === null) ? Date.now() : Date.now() + delta;
+    setTimeout(tick, 1000 - (now % 1000) + 10);   // fire just after each new second
+  }
+
+  // first sync, retry quickly until it works, then every 60 s (also catches DST changes)
+  (async function start(){
+    await sync();
+    if (delta === null){ setTimeout(start, 2000); return; }
+    tick();
+    setInterval(sync, 60000);
+  })();
+
+  // ----- flight board -----
+  // Real flights: the ESP32 downloads the board of the nearest airport (AeroDataBox) every few hours,
+  // and the page shows the flight scheduled closest to the current time.
+  // Without real flights (no API key, no internet) it falls back to a random city each minute.
+  const CITIES = ["Lisbon","Madrid","Barcelona","Rome","Milan","Venice","Naples","Vienna",
+    "Berlin","Munich","Zurich","Geneva","London","Dublin","Edinburgh","Copenhagen","Stockholm",
+    "Oslo","Helsinki","Warsaw","Prague","Budapest","Athens","Istanbul","Nice","Lyon","Porto",
+    "Seville","Malaga","Tenerife","Marrakech","Dakar","Kinshasa","Kigali","Abidjan","Lagos",
+    "Cairo","Tel Aviv","Dubai","Doha","Delhi","Mumbai","Bangkok","Singapore","Tokyo",
+    "New York","Washington","Toronto","Montreal","Chicago","Boston","Reykjavik"];
+  const board = document.getElementById("board");
+  const plane = document.getElementById("plane");
+  const flightEl = document.getElementById("flight");
+  const MAX_CHARS = 14;      // longer names are cut at a word
+  const STEP = 70;           // ms between letters in the ripple
+  let flights = [];          // [{t: UTC seconds, d: 1 departure / 0 arrival, n: "SN 3811", c: "Lisbon"}]
+  let lastFlight = null;
+  let flapTimers = [];
+
+  // ----- real flights straight from AeroDataBox (key and airport are set in the settings) -----
+  const ADB = "https://aerodatabox.p.rapidapi.com";
+  const REFRESH_MS = 11 * 3600 * 1000;       // one download covers 12 hours -> about 65 calls a month
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+    set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  };
+  let flightError = "", loading = false;
+
+  async function adb(path){
+    const ctl = new AbortController(); const to = setTimeout(()=>ctl.abort(), 20000);
+    try{
+      const r = await fetch(ADB + path, {signal: ctl.signal, headers:{
+        "X-RapidAPI-Key": store.get("adbKey", ""), "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com"}});
+      if (r.status === 204) return {};
+      if (r.status === 401 || r.status === 403) throw new Error("key not accepted");
+      if (r.status === 429) throw new Error("monthly limit reached");
+      if (!r.ok) throw new Error("error " + r.status);
+      return await r.json();
+    } finally { clearTimeout(to); }
+  }
+  function here(){
+    return new Promise((res, rej)=>{
+      if (!navigator.geolocation) return rej(new Error("no location"));
+      navigator.geolocation.getCurrentPosition(p=>res(p.coords), rej, {maximumAge: 6*3600e3, timeout: 15000});
+    });
+  }
+  function km(lat1, lon1, lat2, lon2){
+    const r = Math.PI/180, x = (lon2-lon1)*r*Math.cos((lat1+lat2)/2*r), y = (lat2-lat1)*r;
+    return 6371 * Math.hypot(x, y);
+  }
+  function fixedAirport(){ return String(store.get("airport", "") || "").trim().toUpperCase(); }
+  async function airport(){
+    if (fixedAirport()) return fixedAirport();
+    const saved = store.get("nearest", null);
+    let pos;
+    try{ pos = await here(); }catch(e){ return saved ? saved.icao : "EBBR"; }   // no location: last known or Brussels
+    if (saved && km(saved.lat, saved.lon, pos.latitude, pos.longitude) < 30) return saved.icao;
+    const j = await adb("/airports/search/location?lat=" + pos.latitude.toFixed(4) + "&lon=" + pos.longitude.toFixed(4) +
+                        "&radiusKm=100&limit=5&withFlightInfoOnly=true");
+    const a = j.items && j.items[0];
+    if (!a || !a.icao) return "EBBR";
+    store.set("nearest", {icao: a.icao, name: a.name, lat: pos.latitude, lon: pos.longitude});
+    return a.icao;
+  }
+  function parseList(list, d){
+    return (list || []).map(f=>{
+      const mv = f.movement || {}, ap = mv.airport || {};
+      const t = Date.parse(String((mv.scheduledTime && mv.scheduledTime.utc) || "").replace(" ", "T")) / 1000;
+      return {t: t, d: d, n: f.number || "", c: ap.municipalityName || ap.name || ap.iata || ""};
+    }).filter(f => f.t && f.c);
+  }
+  // use the saved board, download a new one only when it is 11 hours old (or forced)
+  async function loadFlights(force){
+    const saved = store.get("flights", null);
+    if (!store.get("adbKey", "") || loading) return;
+    if (force !== true && saved && Date.now() - saved.at < REFRESH_MS &&
+        (!fixedAirport() || saved.icao === fixedAirport())) return;
+    loading = true; flightError = ""; showInfo();
+    try{
+      const icao = await airport();
+      const j = await adb("/flights/airports/icao/" + encodeURIComponent(icao) +
+        "?offsetMinutes=-30&durationMinutes=720&withLeg=false&direction=Both" +
+        "&withCancelled=false&withCodeshared=false&withCargo=false&withPrivate=false&withLocation=false");
+      const list = parseList(j.departures, 1).concat(parseList(j.arrivals, 0)).sort((a, b)=>a.t - b.t);
+      store.set("flights", {at: Date.now(), icao: icao, list: list});
+      flights = list; lastFlight = null;
+    }catch(e){
+      flightError = e.name === "AbortError" ? "no answer from AeroDataBox" : (e.message || String(e));
+    }
+    loading = false; showInfo();
+  }
+  // ----- settings sheet: tap the flight board -----
+  const sheet = document.getElementById("sheet");
+  const sKey = document.getElementById("sKey"), sAirport = document.getElementById("sAirport");
+  const sInfo = document.getElementById("sInfo");
+  function showInfo(){
+    if (!sInfo) return;
+    const s = store.get("flights", null);
+    let txt;
+    if (loading) txt = "Updating flights…";
+    else if (flightError) txt = "Couldn't update: " + flightError + ".";
+    else if (!store.get("adbKey", "")) txt = "No key: showing random cities.";
+    else if (s){
+      const d = new Date(s.at);
+      txt = s.list.length + " flights for " + s.icao + ", updated " +
+            String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0") + ".";
+    } else txt = "";
+    sInfo.textContent = txt;
+  }
+  flightEl.addEventListener("click", ()=>{
+    sKey.value = store.get("adbKey", "");
+    sAirport.value = fixedAirport();
+    showInfo();
+    sheet.hidden = false;
+  });
+  sheet.addEventListener("click", e=>{ if (e.target === sheet) sheet.hidden = true; });
+  document.getElementById("sRefresh").addEventListener("click", ()=>{
+    store.set("adbKey", sKey.value.trim());
+    store.set("airport", sAirport.value.trim().toUpperCase());
+    loadFlights(true);
+  });
+  document.getElementById("settings").addEventListener("submit", e=>{
+    e.preventDefault();
+    const key = sKey.value.trim(), ap = sAirport.value.trim().toUpperCase();
+    const changed = key !== store.get("adbKey", "") || ap !== fixedAirport();
+    store.set("adbKey", key); store.set("airport", ap);
+    sheet.hidden = true;
+    if (!key){ flights = []; lastFlight = null; }
+    else if (changed) loadFlights(true);
+  });
+
+  // start: show the saved board straight away, update it if it is old
+  { const s = store.get("flights", null); if (s && Array.isArray(s.list)) flights = s.list; }
+  loadFlights();
+  setInterval(loadFlights, 10 * 60000);
+  document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState === "visible") loadFlights(); });
+
+  function newFlap(v){
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = '<div class="half top"><span></span></div><div class="half bottom"><span></span></div>';
+    c.dataset.v = "";
+    if (v !== undefined) setCard(c, v, false);
+    board.appendChild(c);
+    return c;
+  }
+  function seeded(seed){                      // small deterministic random generator
+    return function(){
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function label(name){
+    let s = String(name || "").toUpperCase().replace(/\s+/g, " ").trim();
+    if (s.length > MAX_CHARS){
+      const cut = s.lastIndexOf(" ", MAX_CHARS);
+      s = cut > 3 ? s.slice(0, cut) : s.slice(0, MAX_CHARS);
+      s = s.replace(/( \S{1,3})+$/, "");     // "FRANKFURT AM" -> "FRANKFURT", "PALMA DE" -> "PALMA"
+    }
+    return s || "-";
+  }
+  function pickFlight(utcMs){
+    const minute = Math.floor(utcMs / 60000);
+    if (flights.length){
+      const now = utcMs / 1000;
+      let best = Infinity, bestT = 0;
+      for (const f of flights){ const d = Math.abs(f.t - now); if (d < best){ best = d; bestT = f.t; } }
+      if (best <= 3 * 3600){                  // ignore an old board
+        const same = flights.filter(f => f.t === bestT);   // several flights at the same time: take turns
+        const f = same[minute % same.length];
+        return {key: f.n + "@" + f.t, city: label(f.c), dep: !!f.d, info: f};
+      }
+    }
+    const r = seeded(minute * 2654435761); r();
+    return {key: "r" + minute, city: CITIES[Math.floor(r() * CITIES.length)].toUpperCase(),
+            dep: r() < 0.5, info: null};
+  }
+
+  function renderFlight(utcMs, animate){
+    const p = pickFlight(utcMs);
+    if (p.key === lastFlight) return;
+    lastFlight = p.key;
+    plane.classList.toggle("arr", !p.dep);
+    let title = (p.dep ? "Departure to " : "Arrival from ") + p.city;
+    if (p.info){
+      const w = new Date(wallMs(p.info.t * 1000, tz));
+      title = p.info.n + " · " + title + " · " +
+        String(w.getUTCHours()).padStart(2,"0") + ":" + String(w.getUTCMinutes()).padStart(2,"0");
+    }
+    flightEl.title = title;
+
+    flapTimers.forEach(clearTimeout); flapTimers = [];
+    // drop leftovers from an interrupted change, so the board only holds the old city
+    let flaps = [...board.children];
+    while (flaps.length > 0 && flaps[flaps.length-1].dataset.v === NBSP) { flaps.pop().remove(); }
+
+    const chars = [...p.city].map(ch => ch === " " ? NBSP : ch);
+    if (!animate){
+      while (flaps.length < chars.length) flaps.push(newFlap());
+      while (flaps.length > chars.length) flaps.pop().remove();
+      flaps.forEach((c, i)=>setCard(c, chars[i], false));
+      flightEl.style.setProperty("--n", chars.length);
+      return;
+    }
+    // longer city: blank flaps appear and flip in. shorter city: extra flaps flip blank, then go
+    while (flaps.length < chars.length) flaps.push(newFlap(NBSP));
+    flightEl.style.setProperty("--n", flaps.length);
+    flaps.forEach((c, i)=>{
+      const ch = i < chars.length ? chars[i] : NBSP;
+      flapTimers.push(setTimeout(()=>setCard(c, ch, true), i * STEP));
+    });
+    if (flaps.length > chars.length){
+      const extra = flaps.slice(chars.length);
+      flapTimers.push(setTimeout(()=>{
+        extra.forEach(c=>c.remove());
+        flightEl.style.setProperty("--n", chars.length);
+      }, (flaps.length - 1) * STEP + 600));
+    }
+  }
+
+  // ----- theme: Auto (follows iPhone light/dark setting) / Dark / Light -----
+  const THEMES = ["auto","dark","light"];
+  let theme = "auto";
+  try{ theme = localStorage.getItem("flipTheme") || "auto"; }catch(e){}
+  function applyTheme(){
+    if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+  }
+  applyTheme();
+  let toastTimer;
+  document.getElementById("date").addEventListener("click", ()=>{
+    theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];
+    try{ localStorage.setItem("flipTheme", theme); }catch(e){}
+    applyTheme();
+    const t = document.getElementById("toast");
+    t.textContent = theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light";
+    t.classList.add("show"); clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove("show"), 1200);
+  });
+
+  // ----- tap the colon: pulse on / steady -----
+  function toast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show"); clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove("show"), 1200);
+  }
+  try{ if (localStorage.getItem("flipNoPulse") === "1") document.documentElement.classList.add("nopulse"); }catch(e){}
+  document.querySelector(".colon").addEventListener("click", ()=>{
+    const off = document.documentElement.classList.toggle("nopulse");
+    try{ localStorage.setItem("flipNoPulse", off ? "1" : "0"); }catch(e){}
+    toast(off ? "Pulse off" : "Pulse on");
+  });
+
+  // ----- tap seconds to hide (clock grows), tap minutes to show again -----
+  const root = document.documentElement;
+  const secEl = document.getElementById("s");
+  function saveSec(h){ try{ localStorage.setItem("flipHideSec", h ? "1" : "0"); }catch(e){} }
+  try{
+    if (localStorage.getItem("flipHideSec") === "1"){
+      root.classList.add("notrans","nosec"); secEl.classList.add("hidden");
+      requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.remove("notrans")));
+    }
+  }catch(e){}
+  let secTimer;
+  secEl.addEventListener("click", ()=>{
+    if (secEl.classList.contains("hidden")) return;
+    secEl.classList.add("hidden");                       // 1. fade out
+    clearTimeout(secTimer);
+    secTimer = setTimeout(()=>root.classList.add("nosec"), 300);  // 2. remove + grow
+    saveSec(true);
+  });
+  function showSec(){
+    if (!root.classList.contains("nosec")) return;
+    if (root.classList.contains("minimal")) return;     // time-only view: minutes do nothing
+    clearTimeout(secTimer);
+    root.classList.remove("nosec");                      // 1. shrink back, seconds take their place
+    secTimer = setTimeout(()=>secEl.classList.remove("hidden"), 450); // 2. fade in
+    saveSec(false);
+  }
+  document.getElementById("m").addEventListener("click", showSec);
+
+  // ----- hours: each tap goes to the next step -----
+  // 12-hour -> 24-hour -> time only (24-hour) -> time only (12-hour) -> back to the start
+  try{ if (localStorage.getItem("flipMinimal") === "1") root.classList.add("minimal"); }catch(e){}
+  document.getElementById("h").addEventListener("click", ()=>{
+    const minimal = root.classList.contains("minimal");
+    let msg;
+    if (!minimal && !use24){ use24 = true;                         msg = "24-hour"; }
+    else if (!minimal &&  use24){ root.classList.add("minimal");   msg = "Time only"; }
+    else if ( minimal &&  use24){ use24 = false;                   msg = "12-hour"; }
+    else { root.classList.remove("minimal");                       msg = "Full view"; }
+    try{
+      localStorage.setItem("flip24", use24 ? "1" : "0");
+      localStorage.setItem("flipMinimal", root.classList.contains("minimal") ? "1" : "0");
+    }catch(e){}
+    render();
+    toast(msg);
+  });
+
+  // ----- keep the screen on (iOS 16.4+) -----
+  let wakeLock = null;
+  async function keepAwake(){
+    try{
+      if ("wakeLock" in navigator && !wakeLock){
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
+      }
+    }catch(e){}
+  }
+  document.addEventListener("click", keepAwake);
+  document.addEventListener("touchend", keepAwake);
+
+  document.addEventListener("visibilitychange", ()=>{
+    if (document.visibilityState === "visible"){
+      animate = false;          // jump straight to the right time, no flip storm
+      sync().then(render);
+      keepAwake();
+    }
+  });
+  // works offline once opened
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+})();
+</script>
+</body>
+</html>
