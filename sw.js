@@ -1,7 +1,9 @@
 // Flip Clock: keeps the app's own files on the phone so it opens without internet.
 // Flight data (AeroDataBox) always goes straight to the network.
-const CACHE = "flipclock-v1";
-const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
+const CACHE = "flipclock-v7";
+const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png",
+               "inter-light.woff2", "inter-medium.woff2", "inter-bold.woff2",
+               "wx/clear-day.svg", "wx/clear-night.svg", "wx/drizzle.svg", "wx/fog-day.svg", "wx/fog-night.svg", "wx/not-available.svg", "wx/overcast.svg", "wx/partly-cloudy-day-rain.svg", "wx/partly-cloudy-day-snow.svg", "wx/partly-cloudy-day.svg", "wx/partly-cloudy-night-rain.svg", "wx/partly-cloudy-night-snow.svg", "wx/partly-cloudy-night.svg", "wx/rain.svg", "wx/sleet.svg", "wx/snow.svg", "wx/thunderstorms-day-rain.svg", "wx/thunderstorms-night-rain.svg"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));

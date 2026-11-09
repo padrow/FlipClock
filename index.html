@@ -210,6 +210,60 @@
   .panel button{font:inherit;font-weight:600;padding:9px 16px;border-radius:10px;border:0;cursor:pointer;
     color:var(--ink);background:rgba(127,127,127,.18)}
   .panel button.primary{background:var(--ink);color:var(--bg)}
+
+
+  /* Inter (SIL Open Font License, github.com/rsms/inter), trimmed to Latin letters, served with the page */
+  @font-face{font-family:"Inter";src:url("inter-light.woff2") format("woff2");font-weight:300;font-style:normal;font-display:swap}
+  @font-face{font-family:"Inter";src:url("inter-medium.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:"Inter";src:url("inter-bold.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap}
+  /* ---------- extra layouts (swipe left/right): clock & calendar, clock & weather ---------- */
+  :root{--accent:#ff9f0a;--today:#ff3b30;--sun:#ffcc00;--rain:#5ac8fa}
+  .lay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    --S:min(calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.42),
+            calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.86));
+    gap:calc(var(--S)*0.16);font-family:"Inter",-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif}
+  html.standby .wrap, html.weather .wrap{display:none}
+  html.standby .sbx, html.weather .wxl{display:flex}
+  @media (orientation: portrait){
+    .lay{flex-direction:column;
+      --S:min(calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.84),
+              calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.43));
+      gap:calc(var(--S)*0.1)}
+    .wx{align-items:center;text-align:center;padding-left:0}
+    .wx .icon{margin-left:0;margin-right:0}
+  }
+  .analog{width:var(--S);height:var(--S);flex:none}
+  .analog .tick{stroke:var(--ink);stroke-linecap:round;opacity:.45}
+  .analog .tick.major{opacity:1}
+  .analog .num{fill:var(--ink);font-weight:700;font-size:24px;text-anchor:middle;dominant-baseline:central}
+  .analog.round .num{font-weight:300;font-size:20px}
+  .analog .hand{stroke:var(--ink);stroke-linecap:round}
+  .analog .sec{stroke:var(--accent)}
+  .analog .cap{fill:var(--ink)}
+  .analog .cap2{fill:var(--accent)}
+  .cal{width:var(--S);flex:none;font-weight:300;color:var(--ink)}
+  .cal .month{color:var(--today);font-size:calc(var(--S)*0.085);font-weight:500;letter-spacing:.03em;
+    margin:0 0 calc(var(--S)*0.04) calc(var(--S)*0.02);cursor:pointer}
+  .cal .grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:calc(var(--S)*0.022);text-align:center}
+  .cal .wd{font-size:calc(var(--S)*0.062);font-weight:300;opacity:.9;padding-bottom:calc(var(--S)*0.03)}
+  .cal .d{font-size:calc(var(--S)*0.07);line-height:1;height:calc(var(--S)*0.105);
+    display:flex;align-items:center;justify-content:center}
+  .cal .d.today span{display:flex;align-items:center;justify-content:center;
+    width:calc(var(--S)*0.105);height:calc(var(--S)*0.105);border-radius:50%;background:var(--today);color:#fff}
+  .wx{width:var(--S);flex:none;color:var(--ink);display:flex;flex-direction:column;justify-content:center;
+    padding-left:calc(var(--S)*0.04)}
+  .wx .city{display:flex;align-items:center;gap:calc(var(--S)*0.025);font-size:calc(var(--S)*0.085);
+    font-weight:300;cursor:pointer;white-space:nowrap;overflow:hidden}
+  .wx .city span{overflow:hidden;text-overflow:ellipsis}
+  .wx .city svg{width:calc(var(--S)*0.06);height:calc(var(--S)*0.06);flex:none;fill:var(--ink)}
+  .wx .temp{font-size:calc(var(--S)*0.4);font-weight:500;line-height:1;letter-spacing:-.03em;
+    margin:calc(var(--S)*0.02) 0 calc(var(--S)*0.07)}
+  .wx .icon{width:calc(var(--S)*0.22);height:calc(var(--S)*0.22);
+    margin:calc(var(--S)*-0.045) 0 calc(var(--S)*-0.02) calc(var(--S)*-0.035)}
+  .wx .icon img{display:block;width:100%;height:100%}
+  .wx .desc{font-size:calc(var(--S)*0.075);font-weight:300}
+  .wx .hl{font-size:calc(var(--S)*0.07);font-weight:300;opacity:.85;margin-top:calc(var(--S)*0.015)}
 </style>
 </head>
 <body>
@@ -228,6 +282,20 @@
       <svg class="land" viewBox="0 0 24 24"><path d="M2.5 19h19v2h-19v-2zm7.18-5.73l4.35 1.16 5.31 1.42c.8.21 1.62-.26 1.84-1.06.21-.8-.26-1.62-1.06-1.84l-5.31-1.42-2.76-9.02L10.12 2v8.28L5.15 8.95l-.93-2.32-1.45-.39v5.17l1.6.43 5.31 1.43z"/></svg>
     </div>
   </div>
+  </div>
+  <div class="lay sbx" id="standby" aria-hidden="true">
+    <svg class="analog" id="analog" viewBox="-100 -100 200 200" aria-label="Analog clock"></svg>
+    <div class="cal" id="cal"></div>
+  </div>
+  <div class="lay wxl" id="weatherLay" aria-hidden="true">
+    <svg class="analog round" id="analog2" viewBox="-100 -100 200 200" aria-label="Analog clock"></svg>
+    <div class="wx" id="wx">
+      <div class="city" id="wCityRow"><span id="wCity">&nbsp;</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l7.5 3L13.5 21z"/></svg></div>
+      <div class="temp" id="wTemp">--°</div>
+      <div class="icon" id="wIcon"></div>
+      <div class="desc" id="wDesc">&nbsp;</div>
+      <div class="hl" id="wHL">&nbsp;</div>
+    </div>
   </div>
   <div class="status" id="status"></div>
   <div class="toast" id="toast"></div>
@@ -334,6 +402,7 @@
 
   function render(){
     if (delta === null) return;
+    if (/\b(standby|weather)\b/.test(document.documentElement.className)) animate = false;
     const d = new Date(Date.now() + delta);   // read with getUTC* = Brussels wall time
     let h24 = d.getUTCHours();
     const m = d.getUTCMinutes();
@@ -606,7 +675,7 @@
   }
   applyTheme();
   let toastTimer;
-  document.getElementById("date").addEventListener("click", ()=>{
+  function cycleTheme(){
     theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];
     try{ localStorage.setItem("flipTheme", theme); }catch(e){}
     applyTheme();
@@ -614,7 +683,8 @@
     t.textContent = theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light";
     t.classList.add("show"); clearTimeout(toastTimer);
     toastTimer = setTimeout(()=>t.classList.remove("show"), 1200);
-  });
+  }
+  document.getElementById("date").addEventListener("click", cycleTheme);
 
   // ----- tap the colon: pulse on / steady -----
   function toast(msg){
@@ -676,6 +746,214 @@
     toast(msg);
   });
 
+  // ----- extra layouts: clock & calendar, clock & weather -----
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const calEl = document.getElementById("cal");
+  function el(tag, attrs, parent){
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  }
+  // distance from the centre to the edge of the face in direction a:
+  // rounded square (superellipse, n = 4) or a plain circle
+  function edge(a, r, round){
+    if (round) return r;
+    const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+    return r / Math.pow(Math.pow(c, 4) + Math.pow(s, 4), 0.25);
+  }
+  // builds a clock face and returns its three hands
+  function buildClock(svg, round){
+    for (let i = 0; i < 60; i++){
+      const a = i / 60 * 2 * Math.PI - Math.PI / 2;
+      const major = i % 5 === 0;
+      if (!round && i % 15 === 0) continue;       // rounded square: 12, 3, 6, 9 are numbers
+      const R = edge(a, round ? 95 : 92, round);
+      const len = round ? (major ? 9 : 5) : (major ? 15 : 6);
+      el("line", {class: "tick" + (major ? " major" : ""), "stroke-width": major ? (round ? 2.6 : 3.2) : 1.6,
+        x1: (R * Math.cos(a)).toFixed(2), y1: (R * Math.sin(a)).toFixed(2),
+        x2: ((R - len) * Math.cos(a)).toFixed(2), y2: ((R - len) * Math.sin(a)).toFixed(2)}, svg);
+    }
+    const nums = round ? [12,1,2,3,4,5,6,7,8,9,10,11] : [12, 3, 6, 9];
+    nums.forEach(n=>{
+      const a = (n % 12) / 12 * 2 * Math.PI - Math.PI / 2;
+      const R = round ? 69 : edge(a, 92, false) - 19;
+      el("text", {class: "num", x: (R * Math.cos(a)).toFixed(2), y: (R * Math.sin(a)).toFixed(2)}, svg).textContent = n;
+    });
+    const hands = {
+      h: el("line", {class: "hand", x1: 0, y1: 10, x2: 0, y2: round ? -44 : -46, "stroke-width": round ? 6 : 7}, svg),
+      m: el("line", {class: "hand", x1: 0, y1: 12, x2: 0, y2: round ? -80 : -78, "stroke-width": round ? 4.5 : 5}, svg),
+      s: el("line", {class: "hand sec", x1: 0, y1: 16, x2: 0, y2: -86, "stroke-width": 1.4}, svg)
+    };
+    el("circle", {class: "cap", r: 5.5}, svg);
+    el("circle", {class: "cap2", r: 2.4}, svg);
+    return hands;
+  }
+  const clocks = {standby: buildClock(document.getElementById("analog"), false),
+                  weather: buildClock(document.getElementById("analog2"), true)};
+
+  const MONTH_DAYS = ["M","T","W","T","F","S","S"];
+  let calKey = "";
+  function drawCalendar(d){
+    const y = d.getUTCFullYear(), mo = d.getUTCMonth(), day = d.getUTCDate();
+    const key = y + "-" + mo + "-" + day;
+    if (key === calKey) return;
+    calKey = key;
+    const first = (new Date(Date.UTC(y, mo, 1)).getUTCDay() + 6) % 7;   // Monday = 0
+    const days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    let h = '<div class="month" id="calMonth">' + MONTHS[mo].toUpperCase() + '</div><div class="grid">';
+    MONTH_DAYS.forEach(w => h += '<div class="wd">' + w + '</div>');
+    for (let i = 0; i < first; i++) h += '<div class="d"></div>';
+    for (let n = 1; n <= days; n++)
+      h += '<div class="d' + (n === day ? ' today' : '') + '"><span>' + n + '</span></div>';
+    calEl.innerHTML = h + '</div>';
+    document.getElementById("calMonth").addEventListener("click", cycleTheme);
+  }
+
+  // ----- weather (Open-Meteo: free, no key; fetched by the phone) -----
+  const WX_REFRESH = 15 * 60000;
+  let espLoc = null;               // location found by the ESP32 (lat, lon, city), if any
+  function wxStore(k, v){ try{ if (v === undefined) return JSON.parse(localStorage.getItem(k) || "null");
+                               localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
+  // Meteocons by Bas Milius (v2.0.0, filled, animated; MIT license, github.com/basmilius/weather-icons)
+  function iconUrl(name){
+    return (window.WX_ICON_DATA && window.WX_ICON_DATA[name]) || ("wx/" + name + ".svg");
+  }
+  // WMO weather codes -> words and Meteocons icon
+  function wxLook(code, day){
+    const dn = day ? "day" : "night";
+    if (code === 0) return [day ? "Sunny" : "Clear", "clear-" + dn];
+    if (code === 1) return [day ? "Mostly sunny" : "Mostly clear", "partly-cloudy-" + dn];
+    if (code === 2) return ["Partly cloudy", "partly-cloudy-" + dn];
+    if (code === 3) return ["Cloudy", "overcast"];
+    if (code === 45 || code === 48) return ["Fog", "fog-" + dn];
+    if (code === 51 || code === 53 || code === 55) return ["Drizzle", "drizzle"];
+    if (code === 56 || code === 57 || code === 66 || code === 67) return ["Freezing rain", "sleet"];
+    if (code >= 61 && code <= 65) return ["Rain", "rain"];
+    if (code >= 71 && code <= 77) return ["Snow", "snow"];
+    if (code >= 80 && code <= 82) return ["Showers", "partly-cloudy-" + dn + "-rain"];
+    if (code === 85 || code === 86) return ["Snow showers", "partly-cloudy-" + dn + "-snow"];
+    if (code >= 95) return ["Thunderstorm", "thunderstorms-" + dn + "-rain"];
+    return ["", "not-available"];
+  }
+  let wxIconName = "";
+  function showWeather(w){
+    if (!w) return;
+    document.getElementById("wCity").textContent = w.city || "";
+    document.getElementById("wTemp").textContent = Math.round(w.t) + "°";
+    const [txt, icon] = wxLook(w.code, w.day);
+    if (icon !== wxIconName){                     // only swap the picture when it changes (keeps the animation smooth)
+      wxIconName = icon;
+      document.getElementById("wIcon").innerHTML = '<img alt="" src="' + iconUrl(icon) + '">';
+    }
+    document.getElementById("wDesc").textContent = txt;
+    document.getElementById("wHL").textContent = "H: " + Math.round(w.hi) + "°  L: " + Math.round(w.lo) + "°";
+  }
+  async function getJSON(url){
+    const ctl = new AbortController(); const to = setTimeout(()=>ctl.abort(), 15000);
+    try{ const r = await fetch(url, {signal: ctl.signal}); if (!r.ok) throw new Error(r.status); return await r.json(); }
+    finally{ clearTimeout(to); }
+  }
+  async function wxLocation(){
+    if (espLoc) return espLoc;
+    if (window.isSecureContext && navigator.geolocation){
+      try{
+        const p = await new Promise((res, rej)=>navigator.geolocation.getCurrentPosition(res, rej,
+                    {maximumAge: 3600e3, timeout: 15000}));
+        const lat = p.coords.latitude, lon = p.coords.longitude;
+        const saved = wxStore("wxLoc");
+        if (saved && Math.abs(saved.lat - lat) < 0.05 && Math.abs(saved.lon - lon) < 0.08) return saved;
+        let city = "";
+        try{
+          const g = await getJSON("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=" + lat.toFixed(4) +
+                                  "&longitude=" + lon.toFixed(4) + "&localityLanguage=en");
+          city = g.city || g.locality || "";
+        }catch(e){}
+        const loc = {lat, lon, city};
+        wxStore("wxLoc", loc);
+        return loc;
+      }catch(e){}
+    }
+    return wxStore("wxLoc") || {lat: 50.85, lon: 4.35, city: "Brussels"};
+  }
+  let wxLoading = false;
+  async function loadWeather(force){
+    const saved = wxStore("wx");
+    if (wxLoading || (!force && saved && Date.now() - saved.at < WX_REFRESH && (!espLoc || saved.city === espLoc.city))) return;
+    wxLoading = true;
+    try{
+      const loc = await wxLocation();
+      const j = await getJSON("https://api.open-meteo.com/v1/forecast?latitude=" + (+loc.lat).toFixed(3) +
+        "&longitude=" + (+loc.lon).toFixed(3) + "&current=temperature_2m,weather_code,is_day" +
+        "&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1");
+      const w = {at: Date.now(), city: loc.city, t: j.current.temperature_2m, code: j.current.weather_code,
+                 day: j.current.is_day === 1, hi: j.daily.temperature_2m_max[0], lo: j.daily.temperature_2m_min[0]};
+      wxStore("wx", w);
+      showWeather(w);
+    }catch(e){
+      if (!wxStore("wx")) document.getElementById("wDesc").textContent = "Weather unavailable";
+    }
+    wxLoading = false;
+  }
+  showWeather(wxStore("wx"));                      // last known weather straight away (also offline)
+  setInterval(()=>{ if (root.classList.contains("weather")) loadWeather(); }, 60000);
+  document.getElementById("wCityRow").addEventListener("click", cycleTheme);
+
+  // ----- switching layouts -----
+  const LAYOUTS = ["flip", "standby", "weather"];
+  const LAYOUT_NAMES = {flip: "Flip clock", standby: "Clock & calendar", weather: "Clock & weather"};
+  let layout = "flip", analogRaf = 0;
+  function drawAnalog(){
+    analogRaf = 0;
+    const hands = clocks[layout];
+    if (!hands || delta === null) return;
+    const d = new Date(Date.now() + delta);                // local wall time (read with getUTC*)
+    const s = d.getUTCSeconds() + d.getUTCMilliseconds() / 1000;
+    const m = d.getUTCMinutes() + s / 60;
+    const h = (d.getUTCHours() % 12) + m / 60;
+    hands.h.setAttribute("transform", "rotate(" + (h * 30).toFixed(3) + ")");
+    hands.m.setAttribute("transform", "rotate(" + (m * 6).toFixed(3) + ")");
+    hands.s.setAttribute("transform", "rotate(" + (s * 6).toFixed(3) + ")");   // smooth sweep
+    if (layout === "standby") drawCalendar(d);
+    analogRaf = requestAnimationFrame(drawAnalog);
+  }
+  function kickAnalog(){ if (clocks[layout] && !analogRaf) analogRaf = requestAnimationFrame(drawAnalog); }
+  function setLayout(name, announce){
+    if (!LAYOUTS.includes(name)) name = "flip";
+    layout = name;
+    root.classList.toggle("standby", name === "standby");
+    root.classList.toggle("weather", name === "weather");
+    document.getElementById("standby").setAttribute("aria-hidden", name === "standby" ? "false" : "true");
+    document.getElementById("weatherLay").setAttribute("aria-hidden", name === "weather" ? "false" : "true");
+    try{ localStorage.setItem("flipLayout", name); }catch(e){}
+    if (name === "flip"){ animate = false; render(); }       // flip cards jump to the right time, no flip storm
+    else kickAnalog();
+    if (name === "weather") loadWeather();
+    if (announce) toast(LAYOUT_NAMES[name]);
+  }
+  function stepLayout(dir){
+    setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + dir + LAYOUTS.length) % LAYOUTS.length], true);
+  }
+  try{ const l = localStorage.getItem("flipLayout"); if (l && l !== "flip") setLayout(l, false); }catch(e){}
+
+  // swipe left = next layout, swipe right = previous (arrow keys on a computer)
+  let sx = null, sy = null;
+  document.addEventListener("touchstart", e=>{
+    if (e.touches.length !== 1){ sx = null; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  }, {passive: true});
+  document.addEventListener("touchend", e=>{
+    if (sx === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    sx = null;
+    const sheetEl = document.getElementById("sheet");
+    if (sheetEl && !sheetEl.hidden) return;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) stepLayout(dx < 0 ? 1 : -1);
+  }, {passive: true});
+  document.addEventListener("keydown", e=>{
+    if (e.key === "ArrowRight") stepLayout(1);
+    if (e.key === "ArrowLeft") stepLayout(-1);
+  });
+
   // ----- keep the screen on (iOS 16.4+) -----
   let wakeLock = null;
   async function keepAwake(){
@@ -692,7 +970,7 @@
   document.addEventListener("visibilitychange", ()=>{
     if (document.visibilityState === "visible"){
       animate = false;          // jump straight to the right time, no flip storm
-      sync().then(render);
+      sync().then(()=>{ render(); kickAnalog(); if (layout === "weather") loadWeather(); });
       keepAwake();
     }
   });
